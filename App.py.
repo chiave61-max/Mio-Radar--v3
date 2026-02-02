@@ -1,11 +1,37 @@
+
 import streamlit as st
 import yfinance as yf
 
-st.title("🛡️ V3 SHIELD - MONITOR")
-st.write("Monitoraggio Apple (Carico: 222€ | Stop: 211€)")
+st.set_page_config(page_title="V3 SHIELD", page_icon="🛡️")
 
-data = yf.download("AAPL.MI", period="5d", interval="1h")
-if not data.empty:
-    prezzo = data['Close'].iloc[-1]
-    st.metric("Apple Milano", f"{prezzo:.2f} €", f"{prezzo-222:.2f} €")
-    st.line_chart(data['Close'])
+st.title("🛡️ V3 SHIELD - Apple Milano")
+
+# Dati del tuo investimento
+PREZZO_CARICO = 222.0
+STOP_LOSS = 211.0
+QUANTITA = 2
+
+try:
+    # Scarica i dati da Borsa Italiana
+    df = yf.download("AAPL.MI", period="5d", interval="1h", progress=False)
+    
+    if not df.empty:
+        prezzo_attuale = float(df['Close'].iloc[-1])
+        variazione = prezzo_attuale - PREZZO_CARICO
+        percentuale = (variazione / PREZZO_CARICO) * 100
+
+        # Visualizzazione Metriche
+        col1, col2 = st.columns(2)
+        col1.metric("Prezzo Attuale", f"{prezzo_attuale:.2f} €")
+        col2.metric("P/L Totale", f"{variazione * QUANTITA:.2f} €", f"{percentuale:.2f}%")
+
+        st.warning(f"⚠️ STOP LOSS ATTIVO A: {STOP_LOSS} €")
+        
+        # Grafico
+        st.line_chart(df['Close'])
+    else:
+        st.error("Dati non disponibili al momento.")
+except Exception as e:
+    st.error(f"Errore tecnico: {e}")
+
+st.info("Protocollo Prudenza: Monitoraggio attivo 24/7")
