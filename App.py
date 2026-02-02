@@ -79,6 +79,12 @@ with st.expander("📂 Lista di Attesa Completa (Classificata)"):
     if silver_list:
         st.table(pd.DataFrame(silver_list))
 
+import datetime
+
+# Più in basso nel codice, dopo le tabelle...
+st.divider()
+now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+st.caption(f"🕒 Ultimo aggiornamento radar: {now} | Core: V3 Baum-Welch HMM MK2")
 
 
 
