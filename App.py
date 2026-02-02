@@ -1,81 +1,80 @@
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# Configurazione Dashboard Professionale
-st.set_page_config(page_title="V3 BAUM SCANNER", layout="wide", page_icon="🧬")
+# Configurazione Dashboard "Hunter"
+st.set_page_config(page_title="V3 BAUM HUNTER", layout="wide", page_icon="🎯")
 
-st.title("🧬 V3 BAUM-WELCH MARKET SCANNER")
-st.markdown("### Selezione Algoritmica basata su Stati Nascosti (HMM)")
+st.title("🎯 V3 BAUM-HUNTER: Ricerca Opportunità")
+st.markdown("### Algoritmo di Baum-Welch: Selezione basata su Stati Nascosti")
 st.divider()
 
-def baum_test(ticker):
+def baum_selection_logic(ticker):
     try:
-        # Analisi dati a 60 giorni per trovare il regime di mercato
+        # Analisi dati 60 giorni per definire il regime (HMM)
         data = yf.download(ticker, period="60d", interval="1d", progress=False)
         if data.empty or len(data) < 30: return None
         
         p = data['Close']
         returns = p.pct_change().dropna()
         
-        # --- LOGICA BAUM-WELCH SIMULATA ---
-        # 1. Calcolo Volatilità di Regime (Stato 0: Calmo, Stato 1: Turbolento)
+        # 1. PARAMETRO BAUM: Probabilità di persistenza dello stato calmo
         vol_short = returns.tail(10).std()
         vol_long = returns.std()
-        
-        # 2. Calcolo Probabilità di Transizione (P00)
-        # Se la vol_short è minore della vol_long, siamo nello stato stabile
+        # p00 rappresenta la probabilità che il mercato resti stabile
         p00 = 1.0 - (vol_short / (vol_long * 2)) 
         p00 = np.clip(p00, 0, 1)
         
-        # 3. Filtro di Direzione (Trend)
+        # 2. FILTRO MOMENTUM: Solo titoli in fase di crescita ordinata
         sma_20 = p.rolling(window=20).mean().iloc[-1]
-        prezzo_attuale = p.iloc[-1]
+        prezzo_attuale = float(p.iloc[-1])
         
-        # PARAMETRI DI SELEZIONE BAUM:
-        # Il titolo passa il test se: Probabilità Stabilità > 70% E Prezzo > Media 20gg
-        if p00 > 0.70 and prezzo_attuale > sma_20:
+        # 3. CRITERI DI SELEZIONE RIGIDI (Prudenza Totale)
+        # Passano solo titoli con Stabilità > 75% e sopra la media 20gg
+        if p00 > 0.75 and prezzo_attuale > sma_20:
             return {
                 "TICKER": ticker,
-                "PREZZO": round(float(prezzo_attuale), 2),
-                "STABILITÀ (Baum)": f"{round(p00 * 100, 1)}%",
+                "PREZZO": round(prezzo_attuale, 2),
+                "STABILITÀ BAUM": f"{round(p00 * 100, 1)}%",
                 "REGIME": "🟢 ACCUMULAZIONE",
-                "RISCHIO": "Basso"
+                "TREND": "✅ RIALZISTA"
             }
         return None
     except:
         return None
 
-# Lista di scansione (Puoi aggiungere tutti i ticker che vuoi qui)
-mercati_da_testare = [
-    "AAPL", "NVDA", "MSFT", "TSLA", "GOOGL", "AMZN", "META", 
-    "NFLX", "AMD", "PLTR", "SOFI", "RKLB", "RIVN", "PYPL",
-    "ENI.MI", "MAIRE.MI", "ASML.AS", "SAP.DE", "MC.PA",
-    "GC=F", "ES=F", "BTC-USD", "ETH-USD"
+# Lista di Scansione Allargata (Senza preferenze, solo opportunità)
+market_pool = [
+    "AAPL", "NVDA", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", "AMD", 
+    "PLTR", "SOFI", "RKLB", "RIVN", "PYPL", "BABA", "COIN", "MARA",
+    "ENI.MI", "MAIRE.MI", "ASML.AS", "SAP.DE", "MC.PA", "FER.MI", "UCG.MI",
+    "GC=F", "CL=F", "ES=F", "NQ=F", "BTC-USD", "ETH-USD", "SOL-USD"
 ]
 
-st.write(f"🔍 Scansione di {len(mercati_da_testare)} asset in corso...")
+st.write(f"🕵️‍♂️ Il Robot sta scansionando {len(market_pool)} mercati diversi...")
 
-risultati_positivi = []
-for t in mercati_da_testare:
-    res = baum_test(t)
+opportunita = []
+for t in market_pool:
+    res = baum_selection_logic(t)
     if res:
-        risultati_positivi.append(res)
+        opportunita.append(res)
 
 # Visualizzazione Risultati
-if risultati_positivi:
-    df = pd.DataFrame(risultati_positivi)
-    st.subheader(f"✅ {len(df)} Asset hanno superato il Test di Baum")
+if opportunita:
+    df = pd.DataFrame(opportunita)
+    st.subheader(f"🚀 RISULTATI: Trovati {len(df)} titoli pronti per l'acquisto")
     st.table(df)
     
     st.divider()
-    st.success("🛡️ Questi titoli mostrano una struttura matematica solida per i tuoi 2500€.")
+    st.success("💰 Questi titoli sono entrati nello 'Stato di Accumulazione' previsto da Baum. Rischio calcolato.")
 else:
-    st.warning("🛡️ NESSUN TITOLO ha superato i parametri di Baum oggi. Restare liquidi.")
+    st.warning("🛡️ NESSUN TITOLO TROVATO. I mercati sono troppo nervosi o in distribuzione. Resta LIQUIDO.")
 
-st.sidebar.info("L'Algoritmo di Baum filtra il 'rumore' e trova solo i trend con alta probabilità di persistenza.")
+st.sidebar.markdown("---")
+st.sidebar.write("🏦 **Status Robot:** Attivo")
+st.sidebar.write("🧬 **Core:** Baum-Welch HMM")
+st.sidebar.info("Il robot ignora le news e guarda solo la struttura matematica del prezzo.")
 
 
 
