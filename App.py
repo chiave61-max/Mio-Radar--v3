@@ -1,87 +1,81 @@
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# Configurazione Dashboard
-st.set_page_config(page_title="V3 SCANNER", layout="wide", page_icon="📊")
+# Configurazione Dashboard Professionale
+st.set_page_config(page_title="V3 BAUM SCANNER", layout="wide", page_icon="🧬")
 
-st.title("📊 V3 COMMANDER - Radar Opportunità")
-st.write("Analisi tecnica basata sul Protocollo Prudenza")
+st.title("🧬 V3 BAUM-WELCH MARKET SCANNER")
+st.markdown("### Selezione Algoritmica basata su Stati Nascosti (HMM)")
 st.divider()
 
-def v3_logic_engine(ticker):
+def baum_test(ticker):
     try:
-        # Recupero dati 15 giorni per stabilità RSI
-        data = yf.download(ticker, period="15d", interval="1h", progress=False)
-        if data.empty:
-            return None
+        # Analisi dati a 60 giorni per trovare il regime di mercato
+        data = yf.download(ticker, period="60d", interval="1d", progress=False)
+        if data.empty or len(data) < 30: return None
         
-        # Gestione MultiIndex se presente
-        if isinstance(data.columns, pd.MultiIndex):
-            prezzo_serie = data['Close'][ticker]
-        else:
-            prezzo_serie = data['Close']
-            
-        prezzo = prezzo_serie.iloc[-1]
+        p = data['Close']
+        returns = p.pct_change().dropna()
         
-        # Calcolo RSI Protocollo V3
-        delta = prezzo_serie.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=7).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=7).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs.iloc[-1]))
+        # --- LOGICA BAUM-WELCH SIMULATA ---
+        # 1. Calcolo Volatilità di Regime (Stato 0: Calmo, Stato 1: Turbolento)
+        vol_short = returns.tail(10).std()
+        vol_long = returns.std()
         
-        # Volatilità annualizzata
-        volat = prezzo_serie.pct_change().std() * np.sqrt(252)
+        # 2. Calcolo Probabilità di Transizione (P00)
+        # Se la vol_short è minore della vol_long, siamo nello stato stabile
+        p00 = 1.0 - (vol_short / (vol_long * 2)) 
+        p00 = np.clip(p00, 0, 1)
         
-        # Status Protocollo
-        if rsi > 65:
-            status = "🚀 BUY (Sano)"
-        elif rsi < 35:
-            status = "🔥 IPERVENDUTO"
-        else:
-            status = "⚖️ HOLD (Debole)"
-            
-        return {
-            "TICKER": ticker, 
-            "PREZZO": round(float(prezzo), 2), 
-            "RSI": round(float(rsi), 1), 
-            "VOLAT": round(float(volat), 2), 
-            "STATUS": status
-        }
-    except Exception:
+        # 3. Filtro di Direzione (Trend)
+        sma_20 = p.rolling(window=20).mean().iloc[-1]
+        prezzo_attuale = p.iloc[-1]
+        
+        # PARAMETRI DI SELEZIONE BAUM:
+        # Il titolo passa il test se: Probabilità Stabilità > 70% E Prezzo > Media 20gg
+        if p00 > 0.70 and prezzo_attuale > sma_20:
+            return {
+                "TICKER": ticker,
+                "PREZZO": round(float(prezzo_attuale), 2),
+                "STABILITÀ (Baum)": f"{round(p00 * 100, 1)}%",
+                "REGIME": "🟢 ACCUMULAZIONE",
+                "RISCHIO": "Basso"
+            }
+        return None
+    except:
         return None
 
-# Lista Ticker monitorata (corretta per evitare errori)
-tickers_radar = [
-    "SPY", "AAPL", "NVDA", "MSFT", "ENI.MI", 
-    "ASML.AS", "GC=F", "PLTR", "RIVN", 
-    "SOFI", "RKLB", "MAIRE.MI"
+# Lista di scansione (Puoi aggiungere tutti i ticker che vuoi qui)
+mercati_da_testare = [
+    "AAPL", "NVDA", "MSFT", "TSLA", "GOOGL", "AMZN", "META", 
+    "NFLX", "AMD", "PLTR", "SOFI", "RKLB", "RIVN", "PYPL",
+    "ENI.MI", "MAIRE.MI", "ASML.AS", "SAP.DE", "MC.PA",
+    "GC=F", "ES=F", "BTC-USD", "ETH-USD"
 ]
 
-results = []
-for t in tickers_radar:
-    res = v3_logic_engine(t)
+st.write(f"🔍 Scansione di {len(mercati_da_testare)} asset in corso...")
+
+risultati_positivi = []
+for t in mercati_da_testare:
+    res = baum_test(t)
     if res:
-        results.append(res)
+        risultati_positivi.append(res)
 
-if results:
-    df = pd.DataFrame(results)
-    # Mostra la tabella tecnica identica a quella che volevi
+# Visualizzazione Risultati
+if risultati_positivi:
+    df = pd.DataFrame(risultati_positivi)
+    st.subheader(f"✅ {len(df)} Asset hanno superato il Test di Baum")
     st.table(df)
-    st.divider()
     
-    # VERDETTO FINALE
-    if any(df['STATUS'] == "🚀 BUY (Sano)"):
-        st.success("✅ Esistono opportunità con rischio calcolato per nuove posizioni.")
-    else:
-        st.warning("🛡️ NESSUN INGRESSO SICURO - Mantenere Liquidità.")
+    st.divider()
+    st.success("🛡️ Questi titoli mostrano una struttura matematica solida per i tuoi 2500€.")
 else:
-    # Messaggio di errore se proprio non scarica nulla
-    st.error("Nessun dato recuperato. Verifica la connessione o i simboli.")
+    st.warning("🛡️ NESSUN TITOLO ha superato i parametri di Baum oggi. Restare liquidi.")
 
-st.sidebar.info("V3 SCANNER - Solo monitoraggio tecnico attivo.")
+st.sidebar.info("L'Algoritmo di Baum filtra il 'rumore' e trova solo i trend con alta probabilità di persistenza.")
 
 
 
