@@ -3,48 +3,43 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# Configurazione Dashboard "Hunter"
+# Configurazione Dashboard Professionale
 st.set_page_config(page_title="V3 BAUM HUNTER", layout="wide", page_icon="🎯")
 
-st.title("🎯 V3 BAUM-HUNTER: Ricerca Opportunità")
-st.markdown("### Algoritmo di Baum-Welch: Selezione basata su Stati Nascosti")
+st.title("🎯 V3 BAUM-HUNTER & WATCHLIST")
+st.markdown("### Scanner Algoritmico basato su Stati Nascosti (HMM)")
 st.divider()
 
-def baum_selection_logic(ticker):
+def baum_analysis(ticker):
     try:
         # Analisi dati 60 giorni per definire il regime (HMM)
         data = yf.download(ticker, period="60d", interval="1d", progress=False)
         if data.empty or len(data) < 30: return None
         
-        p = data['Close']
+        # Gestione MultiIndex se necessario
+        p = data['Close'][ticker] if isinstance(data.columns, pd.MultiIndex) else data['Close']
         returns = p.pct_change().dropna()
         
         # 1. PARAMETRO BAUM: Probabilità di persistenza dello stato calmo
         vol_short = returns.tail(10).std()
         vol_long = returns.std()
-        # p00 rappresenta la probabilità che il mercato resti stabile
         p00 = 1.0 - (vol_short / (vol_long * 2)) 
         p00 = np.clip(p00, 0, 1)
         
-        # 2. FILTRO MOMENTUM: Solo titoli in fase di crescita ordinata
+        # 2. FILTRO TREND
         sma_20 = p.rolling(window=20).mean().iloc[-1]
         prezzo_attuale = float(p.iloc[-1])
         
-        # 3. CRITERI DI SELEZIONE RIGIDI (Prudenza Totale)
-        # Passano solo titoli con Stabilità > 75% e sopra la media 20gg
-        if p00 > 0.75 and prezzo_attuale > sma_20:
-            return {
-                "TICKER": ticker,
-                "PREZZO": round(prezzo_attuale, 2),
-                "STABILITÀ BAUM": f"{round(p00 * 100, 1)}%",
-                "REGIME": "🟢 ACCUMULAZIONE",
-                "TREND": "✅ RIALZISTA"
-            }
-        return None
+        return {
+            "TICKER": ticker,
+            "PREZZO": round(prezzo_attuale, 2),
+            "STABILITÀ": p00,
+            "SOPRA_MEDIA": prezzo_attuale > sma_20
+        }
     except:
         return None
 
-# Lista di Scansione Allargata (Senza preferenze, solo opportunità)
+# Lista di Scansione Universale
 market_pool = [
     "AAPL", "NVDA", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", "AMD", 
     "PLTR", "SOFI", "RKLB", "RIVN", "PYPL", "BABA", "COIN", "MARA",
@@ -52,29 +47,55 @@ market_pool = [
     "GC=F", "CL=F", "ES=F", "NQ=F", "BTC-USD", "ETH-USD", "SOL-USD"
 ]
 
-st.write(f"🕵️‍♂️ Il Robot sta scansionando {len(market_pool)} mercati diversi...")
+st.write(f"🕵️‍♂️ Scansione di {len(market_pool)} mercati in corso...")
 
-opportunita = []
+gold_list = []
+silver_list = []
+
 for t in market_pool:
-    res = baum_selection_logic(t)
+    res = baum_analysis(t)
     if res:
-        opportunita.append(res)
+        # CRITERI GOLD (Pronti all'acquisto)
+        if res["STABILITÀ"] > 0.75 and res["SOPRA_MEDIA"]:
+            gold_list.append({
+                "TICKER": res["TICKER"],
+                "PREZZO": res["PREZZO"],
+                "STABILITÀ BAUM": f"{round(res['STABILITÀ'] * 100, 1)}%",
+                "STATO": "🟢 PRONTO (Gold)"
+            })
+        # CRITERI SILVER (Lista di Attesa)
+        elif res["STABILITÀ"] > 0.55:
+            gold_list_tickers = [x["TICKER"] for x in gold_list]
+            if res["TICKER"] not in gold_list_tickers:
+                silver_list.append({
+                    "TICKER": res["TICKER"],
+                    "PREZZO": res["PREZZO"],
+                    "STABILITÀ": f"{round(res['STABILITÀ'] * 100, 1)}%",
+                    "MANCA": "✅ Trend" if not res["SOPRA_MEDIA"] else "📈 Forza",
+                    "STATO": "🟡 ATTESA (Silver)"
+                })
 
-# Visualizzazione Risultati
-if opportunita:
-    df = pd.DataFrame(opportunita)
-    st.subheader(f"🚀 RISULTATI: Trovati {len(df)} titoli pronti per l'acquisto")
-    st.table(df)
-    
-    st.divider()
-    st.success("💰 Questi titoli sono entrati nello 'Stato di Accumulazione' previsto da Baum. Rischio calcolato.")
+# --- VISUALIZZAZIONE ---
+
+# 1. TABELLA GOLD
+st.subheader("🚀 OPPORTUNITÀ GOLD (Parametri Baum Superati)")
+if gold_list:
+    st.table(pd.DataFrame(gold_list))
+    st.success("💰 Segnale di acquisto: questi titoli sono in pieno regime di accumulazione.")
 else:
-    st.warning("🛡️ NESSUN TITOLO TROVATO. I mercati sono troppo nervosi o in distribuzione. Resta LIQUIDO.")
+    st.info("🛡️ Nessun titolo Gold rilevato. Rimanere in osservazione.")
 
-st.sidebar.markdown("---")
-st.sidebar.write("🏦 **Status Robot:** Attivo")
-st.sidebar.write("🧬 **Core:** Baum-Welch HMM")
-st.sidebar.info("Il robot ignora le news e guarda solo la struttura matematica del prezzo.")
+st.divider()
+
+# 2. TABELLA SILVER (WATCHLIST)
+st.subheader("⏳ LISTA DI ATTESA (Watchlist HMM)")
+if silver_list:
+    st.write("Titoli in fase di stabilizzazione: monitorare per possibile passaggio a Gold.")
+    st.table(pd.DataFrame(silver_list))
+else:
+    st.warning("Nessun titolo in zona Silver. Mercato attualmente instabile.")
+
+st.sidebar.info("HMM Baum-Welch: lo scanner filtra il mercato cercando solo regimi di stabilità statistica.")
 
 
 
